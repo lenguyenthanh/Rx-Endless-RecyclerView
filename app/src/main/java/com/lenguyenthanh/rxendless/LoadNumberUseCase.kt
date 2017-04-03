@@ -23,18 +23,24 @@ class LoadNumberUseCase {
 
     fun loadData(page: Page): Observable<List<Int>> {
         // simulate network latency. Do not do this ^^
+        lnt("loadData $page")
         Thread.sleep(2000)
-        if(shouldError()){
+        if (shouldError()) {
             return Observable.error(RuntimeException("Cannot load more Items"))
-        }else {
-            if(page.pageNumber < MAX_PAGE) {
+        } else {
+            if (page.pageNumber < MAX_PAGE) {
                 return Observable.just(page.toList())
-            }else{
+            } else {
                 return Observable.just(emptyList())
             }
         }
     }
 
     private var count = 0
-    private fun shouldError() = false // count++ % 3 == 0
+    private fun shouldError() = count++ % 3 == 0
+}
+
+sealed class ItemsState {
+    class Success(val items: List<Int>) : ItemsState()
+    class Error(val ex: Throwable) : ItemsState()
 }

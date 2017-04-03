@@ -21,16 +21,15 @@ import android.support.v7.app.AppCompatActivity
 import android.support.v7.widget.LinearLayoutManager
 import android.util.Log
 import com.jakewharton.rxbinding.support.v7.widget.scrollEvents
-import kotlinx.android.synthetic.main.activity_main.*
+import kotlinx.android.synthetic.main.activity_main.container
+import kotlinx.android.synthetic.main.activity_main.listItems
 import rx.Observable
-import rx.Observer
 import rx.Subscription
 import rx.android.schedulers.AndroidSchedulers
 import java.util.concurrent.TimeUnit
 
-class MainActivity() : AppCompatActivity() {
+class MainActivity : AppCompatActivity() {
 
-    private val TAG = "RxEndlessRecyclerView"
     private val PAGE_SIZE = 50
     private val THRESHOLD = 5
 
@@ -65,7 +64,19 @@ class MainActivity() : AppCompatActivity() {
 
     private fun initPagingFlow() {
         subscription?.unsubscribe()
-        subscription = getPagingObservable().subscribe(PagingSubscriber())
+        subscription = getPagingObservable().subscribe {
+            itemsAdapter.setLoading(false)
+            when (it) {
+                is ItemsState.Success -> {
+                    lnt("onNext: " + it.toString())
+                    itemsAdapter.addData(it.items)
+                }
+                is ItemsState.Error -> {
+                    lnt("onError: " + it.ex.toString())
+                    showError(it.ex.message ?: "Error occur")
+                }
+            }
+        }
     }
 
     private fun getPagingObservable() = Observable.defer { listItems.scrollEvents() }
@@ -73,10 +84,18 @@ class MainActivity() : AppCompatActivity() {
             .map { it.toPagingScrollEvent(layoutManager) }
             .filter { it.shouldLoadMore(THRESHOLD) }
             .map { it.toPage(PAGE_SIZE) }
-            .distinct()
             .doOnNext { showLoadMore() }
-            .flatMap { loadNumberUseCase.loadData(it) }
+            .flatMap { loadData(it) }
             .observeOn(AndroidSchedulers.mainThread())
+
+
+    private fun loadData(page: Page): Observable<ItemsState> {
+        return loadNumberUseCase.loadData(page)
+                .map { ItemsState.Success(it) as ItemsState }
+                .onErrorReturn { ItemsState.Error(it) }
+                .retry(3)
+
+    }
 
     private fun showLoadMore() {
         runOnUiThread { itemsAdapter.setLoading(true) }
@@ -85,27 +104,9 @@ class MainActivity() : AppCompatActivity() {
     private fun showError(message: String) {
         Snackbar.make(container, message, Snackbar.LENGTH_SHORT).show()
     }
+}
 
-    private inner class PagingSubscriber : Observer<List<Int>> {
-
-        override fun onCompleted() {
-            lnt("onCompleted")
-        }
-
-        override fun onNext(t: List<Int>) {
-            lnt("onNext: " + t.toString())
-            itemsAdapter.setLoading(false)
-            itemsAdapter.addData(t)
-        }
-
-        override fun onError(e: Throwable) {
-            lnt("onError: " + e.toString())
-            showError(e.message ?: "Error occur")
-            initPagingFlow()
-        }
-    }
-
-    private fun lnt(message: String) {
-        Log.d(TAG, message)
-    }
+private val TAG = "RxEndlessRecyclerView"
+fun lnt(message: String) {
+    Log.d(TAG, message)
 }
