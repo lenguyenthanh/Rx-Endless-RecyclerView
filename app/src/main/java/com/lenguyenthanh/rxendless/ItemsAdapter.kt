@@ -46,14 +46,13 @@ class ItemsAdapter(private val layoutInflater: LayoutInflater) : RecyclerView.Ad
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         if (holder is TextViewHolder) {
-            holder.mTextView.text = items[position].toString()
+            holder.textView.text = items[position].toString()
         } else if (holder is ProgressViewHolder) {
             holder.progressBar.isIndeterminate = true
         }
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder? {
-        var vh: RecyclerView.ViewHolder
         if (VIEW_TYPE == viewType) {
             val view = layoutInflater.inflate(android.R.layout.simple_list_item_1, parent, false)
             return TextViewHolder(view)
@@ -70,25 +69,22 @@ class ItemsAdapter(private val layoutInflater: LayoutInflater) : RecyclerView.Ad
 
     fun addData(items: List<Int>) {
         items.forEach {
-            this.items += it
-            notifyItemInserted(this.items.size - 1)
+            items.forEach {
+                if (!this.items.contains(it)) {
+                    this.items += it
+                    notifyItemInserted(this.items.size - 1)
+                }
+            }
         }
-        notifyDataSetChanged()
     }
 
     class TextViewHolder(v: View) : RecyclerView.ViewHolder(v) {
-        var mTextView: TextView
+        val textView: TextView = v.findViewById(android.R.id.text1) as TextView
 
-        init {
-            mTextView = v.findViewById(android.R.id.text1) as TextView
-        }
     }
 
     class ProgressViewHolder(v: View) : RecyclerView.ViewHolder(v) {
-        var progressBar: ProgressBar
+        val progressBar: ProgressBar = v.findViewById(R.id.progressBar) as ProgressBar
 
-        init {
-            progressBar = v.findViewById(R.id.progressBar) as ProgressBar
-        }
     }
 }

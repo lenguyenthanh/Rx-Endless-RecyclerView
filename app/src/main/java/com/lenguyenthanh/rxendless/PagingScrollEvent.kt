@@ -8,7 +8,7 @@ data class PagingScrollEvent(val displayCount: Int, val totalCount: Int, val fir
     fun toPage(size: Int) = Page(size, totalCount / size)
 }
 
-data class Page(val pageSize: Int = 30, val pageNumber: Int = 0)
+data class Page(val pageSize: Int, val pageNumber: Int = 0)
 
 fun Page.toList() = IntRange(this.pageSize * this.pageNumber + 1, (this.pageNumber + 1) * this.pageSize).toList()
 

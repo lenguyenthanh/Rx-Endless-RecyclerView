@@ -21,11 +21,11 @@ import android.support.v7.app.AppCompatActivity
 import android.support.v7.widget.LinearLayoutManager
 import android.util.Log
 import com.jakewharton.rxbinding.support.v7.widget.scrollEvents
-import kotlinx.android.synthetic.main.activity_main.container
-import kotlinx.android.synthetic.main.activity_main.listItems
+import kotlinx.android.synthetic.main.activity_main.*
 import rx.Observable
 import rx.Subscription
 import rx.android.schedulers.AndroidSchedulers
+import rx.schedulers.Schedulers
 import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
@@ -64,41 +64,46 @@ class MainActivity : AppCompatActivity() {
 
     private fun initPagingFlow() {
         subscription?.unsubscribe()
-        subscription = getPagingObservable().subscribe {
-            itemsAdapter.setLoading(false)
-            when (it) {
-                is ItemsState.Success -> {
-                    lnt("onNext: " + it.toString())
-                    itemsAdapter.addData(it.items)
+        subscription = getPagingObservable()
+                .subscribe {
+                    when (it) {
+                        is ItemsState.Success -> {
+                            lnt("onNext: " + it.toString())
+                            showLoadMore(isLoading = false)
+                            itemsAdapter.addData(it.items)
+                        }
+                        is ItemsState.Error -> {
+                            lnt("onError: " + it.ex.toString())
+                            showLoadMore(isLoading = false)
+                            showError(it.ex.message ?: "Error occur")
+                        }
+                        is ItemsState.Loading -> showLoadMore(isLoading = true)
+                    }
                 }
-                is ItemsState.Error -> {
-                    lnt("onError: " + it.ex.toString())
-                    showError(it.ex.message ?: "Error occur")
-                }
-            }
-        }
     }
 
-    private fun getPagingObservable() = Observable.defer { listItems.scrollEvents() }
-            .sample(100, TimeUnit.MILLISECONDS)
-            .map { it.toPagingScrollEvent(layoutManager) }
-            .filter { it.shouldLoadMore(THRESHOLD) }
-            .map { it.toPage(PAGE_SIZE) }
-            .doOnNext { showLoadMore() }
-            .flatMap { loadData(it) }
-            .observeOn(AndroidSchedulers.mainThread())
-
+    private fun getPagingObservable() =
+            Observable.defer { listItems.scrollEvents() }
+                    .sample(100, TimeUnit.MILLISECONDS)
+                    .onBackpressureLatest()
+                    .map { it.toPagingScrollEvent(layoutManager) }
+                    .filter { it.shouldLoadMore(THRESHOLD) }
+                    .map { it.toPage(PAGE_SIZE) }
+                    .concatMap { loadData(it) }
+                    .observeOn(AndroidSchedulers.mainThread())
 
     private fun loadData(page: Page): Observable<ItemsState> {
-        return loadNumberUseCase.loadData(page)
+        return loadNumberUseCase
+                .loadData(page)
+                .subscribeOn(Schedulers.io())
                 .map { ItemsState.Success(it) as ItemsState }
                 .onErrorReturn { ItemsState.Error(it) }
-                .retry(3)
-
+                .startWith(ItemsState.Loading)
     }
 
-    private fun showLoadMore() {
-        runOnUiThread { itemsAdapter.setLoading(true) }
+    private fun showLoadMore(isLoading: Boolean) {
+        lnt("showLoadMore $isLoading")
+        itemsAdapter.setLoading(isLoading)
     }
 
     private fun showError(message: String) {
